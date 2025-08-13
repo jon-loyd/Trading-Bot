@@ -27,7 +27,6 @@ except FileExistsError:
 stream = CryptoDataStream(API_KEY, API_SECRET)
 
 async def data_handler(data):
-  # This needs error handling
   with open(csv_file, "a", newline="") as file:
     writer = csv.writer(file)
     writer.writerow([data.timestamp, 
