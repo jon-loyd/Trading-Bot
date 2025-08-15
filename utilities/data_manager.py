@@ -1,10 +1,15 @@
 from alpaca.data.historical import CryptoHistoricalDataClient
 from alpaca.data.requests import CryptoBarsRequest
 from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
+from alpaca.trading.client import TradingClient
+from alpaca.trading.enums import AssetClass
+from alpaca.trading.requests import GetAssetsRequest
 from datetime import datetime
 from pathlib import Path
 import pandas as pd
 from typing import Dict
+
+from utils import get_alpaca_credentials
 
 
 # Dictionary  supported timeframes
@@ -31,10 +36,17 @@ class DataManager:
     """
     
     def __init__(self, path: str = "../data") -> None:
-        self.client = CryptoHistoricalDataClient()
+        self.historical_client = CryptoHistoricalDataClient()
         self.path = Path(__file__).parent.joinpath(path).resolve()
+        self.available_symbols = None
 
     def download(self, symbol: str, timeframe: str, start_date: str,end_date: str) -> None:
+        if not self.available_symbols:
+            self._set_available_symbols()
+
+        if symbol not in self.available_symbols:
+            raise ValueError(f"The symbol {symbol} either does not exist on Alpaca or the format is wrong.")
+        
         if timeframe not in TIMEFRAMES:
             raise ValueError(f"The timeframe {timeframe} is not supported.")
         
@@ -52,6 +64,13 @@ class DataManager:
         file_name = f"{symbol.replace("/", "-").replace(":", "-")}.csv"
         return timeframe_path.joinpath(file_name)
 
+    def _set_available_symbols(self) -> None:
+        api_key, api_secret = get_alpaca_credentials()
+        trading_client = TradingClient(api_key, api_secret, paper=True)
+        search_params = GetAssetsRequest(asset_class=AssetClass.CRYPTO)
+        assets = trading_client.get_all_assets(search_params)
+        self.available_symbols = [asset.symbol for asset in assets if asset.tradable]
+
     def _get_data(self, symbol: str, timeframe: TimeFrame, start_date: datetime, end_date: datetime) -> pd.DataFrame:
         request_params = CryptoBarsRequest(
             symbol_or_symbols=symbol,
@@ -60,7 +79,7 @@ class DataManager:
             end=end_date
         )
         
-        bars = self.client.get_crypto_bars(request_params)
+        bars = self.historical_client.get_crypto_bars(request_params)
         df = bars.df.reset_index()
 
         return df
