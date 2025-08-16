@@ -42,15 +42,14 @@ class DataManager:
     def __init__(self, path: str = "../data") -> None:
         self.historical_client = CryptoHistoricalDataClient()
         self.path = Path(__file__).parent.joinpath(path).resolve()
+        self.assets = None
         self.available_symbols = None
+        self._set_assets()
 
     def download(self, symbol: str, timeframe: str, start_date: datetime, end_date: datetime) -> None:
         """
         Downloads data for a given symbol and timeframe, then saves it to a CSV file.
         """
-        
-        if not self.available_symbols:
-            self._set_available_symbols()
 
         if symbol not in self.available_symbols:
             raise ValueError(f"The symbol {symbol} either does not exist on Alpaca or the format is wrong.")
@@ -63,12 +62,20 @@ class DataManager:
         file_path = self._get_csv_file_path(symbol, timeframe)
         df.to_csv(file_path, header=True, index=True)
 
+    def fetch_symbol_asset_info(self, symbol: str):
+        if symbol not in self.available_symbols:
+            raise ValueError(f"The symbol {symbol} either does not exist on Alpaca or the format is wrong.")
+        return self.assets[symbol]
+
     def load(self, symbol: str, timeframe: str, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None) -> pd.DataFrame:
         """
         Loads data from a CSV file for a given symbol and timeframe.
         """
         
         file_path = self._get_csv_file_path(symbol, timeframe)
+
+        if symbol not in self.available_symbols:
+            raise ValueError(f"The symbol {symbol} either does not exist on Alpaca or the format is wrong.")
 
         if not file_path.exists():
             raise FileNotFoundError(f"The data file for {symbol} in timeframe {timeframe} does not exist. Please use the download method first.")
@@ -131,9 +138,11 @@ class DataManager:
 
         return df
 
-    def _set_available_symbols(self) -> None:
+    def _set_assets(self) -> None:
         api_key, api_secret = get_alpaca_credentials()
         trading_client = TradingClient(api_key, api_secret, paper=True)
         search_params = GetAssetsRequest(asset_class=AssetClass.CRYPTO)
         assets = trading_client.get_all_assets(search_params)
-        self.available_symbols = [asset.symbol for asset in assets if asset.tradable]
+        tradeable_assets = [asset for asset in assets if asset.tradable]
+        self.assets = {asset.symbol: asset for asset in tradeable_assets}
+        self.available_symbols = [asset.symbol for asset in tradeable_assets]
