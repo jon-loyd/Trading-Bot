@@ -1,2 +1,9 @@
+# Environment and setup
 .env
-.venv
+.venv/
+
+# Compiled/binary files
+__pycache__/
+
+# Data files
+data/
